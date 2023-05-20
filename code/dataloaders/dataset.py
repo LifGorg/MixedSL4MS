@@ -13,10 +13,12 @@ from scipy.ndimage.interpolation import zoom
 from torch.utils.data import Dataset
 from torch.utils.data.sampler import Sampler
 
-
+#Weakly-Supervised
+# Generating pseudo labels using random walker segmentation
 def pseudo_label_generator_acdc(data, seed, beta=100, mode='bf'):
     from skimage.exposure import rescale_intensity
     from skimage.segmentation import random_walker
+    
     if 1 not in np.unique(seed) or 2 not in np.unique(seed) or 3 not in np.unique(seed):
         pseudo_label = np.zeros_like(seed)
     else:
@@ -62,7 +64,7 @@ class BaseDataSets(Dataset):
 
         # if num is not None and self.split == "train":
         #     self.sample_list = self.sample_list[:num]
-        print("total {} samples".format(len(self.sample_list)))
+        print("total (dataset) {} samples".format(len(self.sample_list)))
 
     def _get_fold_ids(self, fold):
         all_cases_set = ["patient{:0>3}".format(i) for i in range(1, 101)]
@@ -105,8 +107,11 @@ class BaseDataSets(Dataset):
 
     def __len__(self):
         return len(self.sample_list)
+    
 
+    # Function to get a specific sample based on its index
     def __getitem__(self, idx):
+        # Retrieve the case id from the sample list using the index
         case = self.sample_list[idx]
         if self.split == "train":
             h5f = h5py.File(self._base_dir +
@@ -114,23 +119,32 @@ class BaseDataSets(Dataset):
         else:
             h5f = h5py.File(self._base_dir +
                             "/ACDC_training_volumes/{}".format(case), 'r')
+        # Retrieve the image and label data from the h5py file
         image = h5f['image'][:]
+        #Change begins
         label = h5f['label'][:]
         sample = {'image': image, 'label': label}
+
+        # If in the training split, generate the label based on the supervision type
         if self.split == "train":
             image = h5f['image'][:]
             if self.sup_type == "random_walker":
                 label = pseudo_label_generator_acdc(image, h5f["scribble"][:])
             else:
+                # Otherwise, use the provided supervision label
                 label = h5f[self.sup_type][:]
+
+                    # print("empty scribble")
+            # Package the image and label into a sample dictionary and apply any transforms if provided
             sample = {'image': image, 'label': label}
             sample = self.transform(sample)
         else:
             image = h5f['image'][:]
-            label = h5f['label'][:]
+            label = h5f['scribble'][:]
             sample = {'image': image, 'label': label}
         sample["idx"] = idx
         return sample
+
 
 
 def random_rot_flip(image, label):
@@ -157,6 +171,8 @@ class RandomGenerator(object):
 
     def __call__(self, sample):
         image, label = sample['image'], sample['label']
+        # if not np.any(label):
+        #     print("Empty label found.")
         # ind = random.randrange(0, img.shape[0])
         # image = img[ind, ...]
         # label = lab[ind, ...]
