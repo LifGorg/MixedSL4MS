@@ -138,7 +138,7 @@ def calculate_metric_percase(pred, gt, spacing):
 def test_single_volume(case, net, test_save_path, FLAGS):
     h5f = h5py.File(FLAGS.root_path +
                     "/ACDC_training_volumes/{}".format(case), 'r')
-    image = h5f['image'][:]
+    image = np.array(h5f['image'][:])
     label = h5f['label'][:]
     prediction = np.zeros_like(label)
     for ind in range(image.shape[0]):
@@ -155,9 +155,16 @@ def test_single_volume(case, net, test_save_path, FLAGS):
             out = out.cpu().detach().numpy()
             pred = zoom(out, (x / 224, y / 224), order=0)
             prediction[ind] = pred
-    case = case.replace(".h5", "")
-    org_img_path = "../data/ACDC_training/{}.nii.gz".format(case)
-    org_img_itk = sitk.ReadImage(org_img_path)
+    #case = case.replace(".h5", "")
+    # org_img_path = "../data/ACDC/ACDC_training_volumes/{}".format(case)
+
+
+# Convert the numpy array to a SimpleITK image
+    # image = sitk.GetImageFromArray(image)
+
+# Now you can use SimpleITK functions on the image
+
+    org_img_itk = sitk.GetImageFromArray(image)
     spacing = org_img_itk.GetSpacing()
 
     first_metric = calculate_metric_percase(
@@ -190,7 +197,7 @@ def Inference(FLAGS):
         image_list.extend(new_data_list)
     snapshot_path = "../model/{}_{}/{}".format(
         FLAGS.exp, FLAGS.fold, FLAGS.sup_type)
-    test_save_path = "../model/{}_{}/{}/ViT_predictions/".format(
+    test_save_path = "../TestPerformance/Mixup_CPS_MT_fold1/".format(
         FLAGS.exp, FLAGS.fold, FLAGS.sup_type)
     if os.path.exists(test_save_path):
         shutil.rmtree(test_save_path)
@@ -199,14 +206,8 @@ def Inference(FLAGS):
     
     net = ViT_seg(config, img_size=[224, 224],
                      num_classes=args.num_classes).cuda()
-    net.load_from(config)
-
-
-
-    save_mode_path = os.path.join(
-        snapshot_path, 'ViT_best_model.pth')
-    net.load_state_dict(torch.load(save_mode_path))
-    print("init weight from {}".format(save_mode_path))
+    weights = torch.load('/home/yliu/CV-WSL-MIS/Ours/ACDC/50%scribble_semi_weakly/Mixup_CPS_MT_fold1/best_model1_iter_21100_dice_0.8585.pth')
+    net.load_state_dict(weights)
     net.eval()
 
     first_total = 0.0
